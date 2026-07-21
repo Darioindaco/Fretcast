@@ -1,0 +1,19 @@
+# Fretcast V02 core.
+#
+# The eval harness (fretcast/) is pure stdlib — nothing below is needed to run
+# tests or score predictions. These are for the MODEL side (fase 1+), installed
+# into a CUDA venv on the RTX box.
+
+# --- model / audio (fase 1: baseline) ---
+# torch                # install the CUDA build from pytorch.org, not from PyPI
+# torchaudio
+# librosa>=0.10        # CQT frontend, resampling
+# numpy
+# soundfile            # WAV I/O
+
+# --- realtime capture (fase 3: streaming) ---
+# sounddevice          # ASIO input on Windows for low-latency capture
+
+# --- optional / evaluation extras ---
+# mir_eval             # cross-check onset/transcription metrics against a reference impl
+# pretty_midi          # if a model emits MIDI instead of tab

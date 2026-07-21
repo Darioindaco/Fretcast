@@ -1,0 +1,27 @@
+# fretcast exercise ground truth
+# name: Devil pairs — the disambiguation stress test
+# bpm: 80
+# string numbering: 1=high E (thinnest) .. 6=low E (thickest)
+# Each pair is the SAME pitch played at two positions several frets apart. Audio pitch
+# is identical, so only timbre/inharmonicity (and context) can tell them apart. This is
+# the exact set that measures disambiguation_rate and sizes the need for a vision
+# tiebreaker (plan sections 2-3). A one-beat rest separates each pair.
+#   pair 1  E4  = s1 f0  vs  s2 f5
+#   pair 2  A3  = s3 f2  vs  s4 f7
+#   pair 3  B3  = s2 f0  vs  s3 f4
+#   pair 4  G3  = s3 f0  vs  s4 f5
+#   pair 5  D4  = s2 f3  vs  s3 f7
+#   pair 6  E3  = s5 f7  vs  s6 f12   (widest separation)
+beat,string,fret
+0,1,0
+1,2,5
+3,3,2
+4,4,7
+6,2,0
+7,3,4
+9,3,0
+10,4,5
+12,2,3
+13,3,7
+15,5,7
+16,6,12
