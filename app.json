@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Fretcast",
+    "slug": "fretcast",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.fretcast.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Fretcast uses your camera to track your fretboard.",
+        "NSMicrophoneUsageDescription": "Fretcast uses your microphone to detect chords.",
+        "UIRequiredDeviceCapabilities": [
+          "arm64"
+        ],
+        "MinimumOSVersion": "16.0"
+      }
+    },
+    "android": {
+      "package": "com.fretcast.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Fretcast uses your camera to track your fretboard.",
+          "enableMicrophonePermission": true,
+          "microphonePermissionText": "Fretcast uses your microphone to detect chords."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bb822d9c-3471-4a83-ae05-e4c748fb3a09"
+      }
+    },
+    "owner": "darioindaco1"
+  }
+}
