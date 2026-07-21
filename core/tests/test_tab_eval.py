@@ -87,6 +87,23 @@ def test_onset_miss_and_insertion() -> None:
     check(res.onset_precision < 1.0, "precision must reflect the inserted note")
 
 
+def test_pitch_autocorr_synthetic() -> None:
+    # Synthesize A3 (220 Hz) + a weaker octave harmonic; tracker should lock the fundamental.
+    import math
+
+    from fretcast.mono_baseline import pitch_autocorr
+
+    rate = 22050
+    n = 1024
+    frame = [
+        math.sin(2 * math.pi * 220.0 * i / rate) + 0.4 * math.sin(2 * math.pi * 440.0 * i / rate)
+        for i in range(n)
+    ]
+    pr = pitch_autocorr(frame, rate)
+    check(abs(pr.freq - 220.0) < 3.0, f"expected ~220 Hz, got {pr.freq:.1f}")
+    check(pr.clarity > 0.7, f"clean tone should have high clarity, got {pr.clarity:.2f}")
+
+
 def main() -> int:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
