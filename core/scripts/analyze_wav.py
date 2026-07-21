@@ -21,9 +21,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("wav")
     ap.add_argument("--clarity", type=float, default=0.6, help="min pitch clarity 0..1")
+    ap.add_argument(
+        "--voice",
+        choices=["bass", "melody"],
+        default="bass",
+        help="bass = plain autocorrelation (lowest ringing string); "
+        "melody = pre-emphasis to surface the upper picked voice",
+    )
     args = ap.parse_args()
 
-    notes, info = transcribe_mono(args.wav, clarity_min=args.clarity)
+    preemph = 0.97 if args.voice == "melody" else 0.0
+    notes, info = transcribe_mono(args.wav, clarity_min=args.clarity, preemph=preemph)
 
     print(f"file       : {Path(args.wav).name}")
     print(f"channels   : {info['channels']}   {info['bits']}-bit {'float' if info['float'] else 'PCM'}"
@@ -32,6 +40,7 @@ def main() -> int:
         c = info["lr_correlation"]
         verdict = "dual-mono (dry)" if c > 0.999 else "true stereo (has processing)" if c < 0.98 else "near-mono"
         print(f"L/R corr   : {c:.4f}  -> {verdict}")
+    print(f"voice      : {args.voice}")
     print(f"notes      : {len(notes)} detected")
     print("-" * 68)
     print(f"{'t (s)':>7}  {'note':>4}  {'clarity':>7}  {'display':>8}   candidates (string,fret)")

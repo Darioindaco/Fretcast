@@ -103,30 +103,89 @@ def downsample(x: list[float], factor: int) -> list[float]:
     return out
 
 
-# ── Onset detection (short-time energy, adaptive) ─────────────────────────────
+# ── FFT (radix-2, pure Python) ────────────────────────────────────────────────
 
-def detect_onsets(x: list[float], rate: int, hop: int = 256, min_ioi_s: float = 0.10) -> list[int]:
-    """Return onset sample indices via a rising-energy threshold with a min interval."""
-    energies: list[float] = []
-    for i in range(0, len(x) - hop, hop):
-        e = 0.0
-        for j in range(i, i + hop):
-            e += x[j] * x[j]
-        energies.append(e / hop)
+def _fft(re: list[float], im: list[float]) -> None:
+    """In-place iterative radix-2 Cooley-Tukey FFT. len must be a power of 2."""
+    import math
 
+    n = len(re)
+    j = 0
+    for i in range(1, n):
+        bit = n >> 1
+        while j & bit:
+            j ^= bit
+            bit >>= 1
+        j ^= bit
+        if i < j:
+            re[i], re[j] = re[j], re[i]
+            im[i], im[j] = im[j], im[i]
+    length = 2
+    while length <= n:
+        ang = -2 * math.pi / length
+        wr, wi = math.cos(ang), math.sin(ang)
+        half = length >> 1
+        for i in range(0, n, length):
+            cr, ci = 1.0, 0.0
+            for k in range(half):
+                a = i + k
+                b = a + half
+                tr = re[b] * cr - im[b] * ci
+                ti = re[b] * ci + im[b] * cr
+                re[b] = re[a] - tr
+                im[b] = im[a] - ti
+                re[a] += tr
+                im[a] += ti
+                cr, ci = cr * wr - ci * wi, cr * wi + ci * wr
+        length <<= 1
+
+
+# ── Onset detection (spectral flux — catches plucks over sustain) ─────────────
+
+def detect_onsets(
+    x: list[float],
+    rate: int,
+    win: int = 1024,
+    hop: int = 256,
+    min_ioi_s: float = 0.07,
+    sensitivity: float = 1.5,
+) -> list[int]:
+    """Onset sample indices via spectral flux (plan section 2, step 1).
+
+    Flux = sum of positive frame-to-frame magnitude increases. Unlike energy, this
+    fires on a new note's attack even while previous notes still ring — the normal
+    case in fingerpicking. Adaptive peak-picking over a local window follows.
+    """
+    import math
+
+    hann = [0.5 * (1 - math.cos(2 * math.pi * i / (win - 1))) for i in range(win)]
+    prev_mag: list[float] | None = None
+    flux: list[float] = []
+    for start in range(0, len(x) - win, hop):
+        re = [x[start + i] * hann[i] for i in range(win)]
+        im = [0.0] * win
+        _fft(re, im)
+        half = win // 2
+        mag = [math.hypot(re[b], im[b]) for b in range(half)]
+        if prev_mag is None:
+            flux.append(0.0)
+        else:
+            flux.append(sum(m - p for m, p in zip(mag, prev_mag) if m > p))
+        prev_mag = mag
+
+    # adaptive peak-picking: local maximum above a moving mean + sensitivity*std
     onsets: list[int] = []
-    min_gap = int(min_ioi_s * rate / hop)
+    min_gap = max(1, int(min_ioi_s * rate / hop))
     last = -min_gap
-    hist: list[float] = []
-    for k, e in enumerate(energies):
-        hist.append(e)
-        if len(hist) > 43:
-            hist.pop(0)
-        mean = sum(hist) / len(hist)
-        var = sum((v - mean) ** 2 for v in hist) / len(hist)
-        thr = mean + 2.0 * var**0.5
-        rising = k > 0 and e > energies[k - 1]
-        if e > thr and rising and (k - last) >= min_gap and e > 1e-6:
+    w = 20  # +/- frames for the local statistics window
+    for k in range(1, len(flux) - 1):
+        lo, hi = max(0, k - w), min(len(flux), k + w)
+        local = flux[lo:hi]
+        mean = sum(local) / len(local)
+        std = (sum((v - mean) ** 2 for v in local) / len(local)) ** 0.5
+        thr = mean + sensitivity * std
+        is_peak = flux[k] > flux[k - 1] and flux[k] >= flux[k + 1]
+        if is_peak and flux[k] > thr and (k - last) >= min_gap:
             onsets.append(k * hop)
             last = k
     return onsets
@@ -200,8 +259,19 @@ class Note:
     candidates: list[tuple[int, int]]
 
 
-def transcribe_mono(path: str | Path, clarity_min: float = 0.6) -> tuple[list[Note], dict]:
-    """Full monophonic pass. Returns (notes, file_info)."""
+def transcribe_mono(
+    path: str | Path, clarity_min: float = 0.6, preemph: float = 0.0
+) -> tuple[list[Note], dict]:
+    """Full monophonic pass. Returns (notes, file_info).
+
+    preemph (0..~1): first-difference high-pass y[n] = x[n] - preemph*x[n-1] applied to
+    the onset window before pitch tracking. It suppresses ringing low strings, so on
+    two-voice fingerpicking the plain pass tends to report the BASS voice and a preemph
+    pass (e.g. 0.97) tends to surface the MELODY voice. Neither captures both at once —
+    that is the polyphony the V02 CRNN exists to solve.
+    """
+    import math
+
     mono, rate, info = read_wav_mono(path)
 
     # work at ~22 kHz: enough for guitar, ~2x faster autocorrelation
@@ -212,17 +282,19 @@ def transcribe_mono(path: str | Path, clarity_min: float = 0.6) -> tuple[list[No
     onsets = detect_onsets(x, wrate)
     win = 1024
     skip = int(0.03 * wrate)  # skip the pick transient before measuring pitch
+    hann = [0.5 * (1 - math.cos(2 * math.pi * i / (win - 1))) for i in range(win)]
 
     notes: list[Note] = []
     for on in onsets:
         start = on + skip
         if start + win > len(x):
             break
-        frame = x[start : start + win]
-        # light Hann to reduce edge effects
-        import math
-
-        frame = [frame[i] * 0.5 * (1 - math.cos(2 * math.pi * i / (win - 1))) for i in range(win)]
+        if preemph and start >= 1:
+            seg = x[start - 1 : start + win]
+            seg = [seg[i] - preemph * seg[i - 1] for i in range(1, win + 1)]
+        else:
+            seg = x[start : start + win]
+        frame = [seg[i] * hann[i] for i in range(win)]
         pr = pitch_autocorr(frame, wrate)
         if pr.freq <= 0 or pr.clarity < clarity_min:
             continue
