@@ -34,3 +34,11 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# python (V02 core)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+core/**/*.pred.csv
+external/
