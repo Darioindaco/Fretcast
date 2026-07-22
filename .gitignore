@@ -42,3 +42,6 @@ __pycache__/
 venv/
 core/**/*.pred.csv
 external/
+
+# local dev tools (e.g. portable gh CLI), never part of the project itself
+.tools/

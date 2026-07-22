@@ -52,6 +52,16 @@ def pitch_to_positions(
     return positions
 
 
+def fretcast_string_to_trimplexx(string: int) -> int:
+    """Fretcast string number (1=high e..6=low E) -> trimplexx string index (0=low E..5=high e)."""
+    return 6 - string
+
+
+def trimplexx_string_to_fretcast(string_idx: int) -> int:
+    """Inverse of `fretcast_string_to_trimplexx` (the mapping is its own inverse)."""
+    return 6 - string_idx
+
+
 def midi_to_name(midi: int) -> str:
     """MIDI number -> scientific pitch name, e.g. 64 -> 'E4'."""
     return f"{NOTE_NAMES[midi % 12]}{midi // 12 - 1}"
